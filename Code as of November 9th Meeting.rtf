@@ -1,0 +1,192 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1404\cocoasubrtf470
+{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 .ORIG x3000\
+\
+  LEA R1, STACK ;; make sure that TOP is at top of STACK\
+  ST R1, TOP ;; store the top of the stack into the TOP label \
+\
+  ;; Clear all the general purpose registers\
+  AND R0, R0, #0\
+  AND R1, R1, #0\
+  AND R2, R2, #0\
+  AND R3, R3, #0\
+  AND R4, R4, #0\
+  AND R5, R5, #0\
+  AND R6, R6, #0\
+  AND R7, R7, #0\
+\
+  ;; Save R7 to a special place:\
+  ST R7, REG7 \
+\
+  ;; Save Registers:\
+  JSR PUSH ;;destroys R7, which is why we saved it in REG7\
+\
+  ;; Call function; setup ARGS in REGS if necessary:\
+  ;; --------------------------------------------------------------\
+  JSR MAIN\
+  ;; --------------------------------------------------------------\
+\
+  ;; Restore Registers:\
+  JSR POP\
+  LD R2, SUM_ANSWER ;;load the answer of the recursive function into the registers\
+  LD R1, ADD_RESULT ;;load the asnwer of the function that calls a function into itself\
+\
+  LD R7, REG7 ;;restore R7 from before calling functions\
+  HALT ;; R7 gets destroyed here \
+\
+;; MAIN subroutine \
+MAIN: ST R7, REG7 ;; save R7 first\
+\
+  ;; FUNCTION CALL!\
+  ;; Save Registers:\
+       JSR    PUSH ;; destroys r7, which is why was saved earlier \
+  ;; Call function and put variables into R0 and R0\
+       AND R2, R2, #0 ;;for sum accumulation \
+       AND R0, R0, #0 ;;for n\
+       ADD R0, R0, #5 ;;for n\
+       ;; --------------------------------------------------------\
+       JSR SUM    ;;SUM(N) function\
+       ;; --------------------------------------------------------\
+  ;; Look at registers now for results\
+        ;; The result is in R2, so we need to store this value into memory\
+        LD R2, SUM_ANSWER\
+  ;; Now Restore Registers:\
+       JSR    POP ;; destroys r7\
+       LD     R7, REG7\
+  ;; Continue ....\
+      ;;call another function \
+       ST R7, REG7\
+       JSR PUSH\
+       JSR WRITESTRING\
+       JSR POP\
+       LD R7, REG7\
+       \
+       ;;call the function ADDNEST\
+       ST R7, REG7\
+       JSR PUSH\
+       JSR ADDNEST\
+       JSR POP\
+       \
+       LD     R7, REG7 ;; loads to where we want to return\
+       RET\
+\
+;; The Stack for the whole system:\
+TOP:    .FILL    STACK\
+STACK:  .BLKW    #89\
+;; arg in R1, put result in R2\
+;; Do some things, including call other functions!\
+SUM:  ;; n is already in R0 set at the beginning of each call\
+      ;; save R7 to temporary memory\
+      ST R7, REG7\
+      ADD R0, R0, #0 ;; ensure that the function will correctly correct branch using NZP\
+      BRz RETURN ;;return if R0's value is 0\
+      JSR PUSH ;;save the registers \
+      LD R2, SUM_ANSWER ;;load current value of the sum\
+      ADD R2, R2, R0 ;; have sum in R2\
+      ST R2, SUM_ANSWER ;;store resultant sum\
+      ADD R0, R0, #-1 ;; decrement to n - 1\
+      JSR SUM\
+      JSR POP\
+RETURN: LD R7, REG7\
+      RET\
+\
+RESULT: .FILL #0\
+SUM_ANSWER: .FILL #0\
+\
+;;Function that calls another function\
+ADDNEST: \
+    ST R7, REG7\
+    JSR PUSH\
+    AND R0, R0, #0 ;;for first variable  \
+    AND R1, R1, #0 ;;for second variable\
+    AND R2, R2, #0 ;;for result\
+    ADD R0, R0, #6 ;;for n\
+    ADD R1, R1, #4\
+    JSR ADDVALUES\
+    ST R2, ADD_RESULT\
+    JSR POP\
+    LD R7, REG7\
+    RET\
+\
+;;Function that adds two values together in R0 and R1 and stores sum in ADDRESULT\
+ADDVALUES: \
+    ST R7, REG7\
+    ADD R2, R0, R1\
+    LD R7, REG7\
+    RET\
+\
+ADD_RESULT: .FILL #0\
+\
+WRITESTRING: LDI R0, STRINGTOPRINT ;;based on writechar from page 234 of textbook\
+            ST R7, REG7\
+            PUTS \
+            LDI R0, NEWLINETOPRINT\
+            OUT\
+            LD R7, REG7 ;;have to have this, since PUTS changes R7 as a TRAP routine\
+            RET\
+\
+STRINGTOPRINT: .FILL LOCSTRING1\
+NEWLINETOPRINT: .FILL NEWLINE\
+LOCSTRING1: .FILL STRING\
+STRING: .STRINGZ "No one can make you feel inferior without your consent. \'97 Eleanor Roosevelt"\
+NEWLINE: xA ;;newline ASCII character\
+\
+;;; ----------------------------------------- Stack\
+REG5: .FILL    #0\
+REG6: .FILL    #0\
+REG7: .FILL    #0\
+PUSH:  ST R6, REG6     ;; save R5, R6 to MEMORY\
+     ST R5, REG5     ;; R7 has return address\
+                     ;; REG7 is in MEMORY already\
+                     ;; R6 and R5 are destroyed\
+     LD R6, TOP     ;; R6 is now TOP of stack\
+     STR R0, R6, #0      ;; push R0 on stack\
+     ADD R6, R6, #1  ;; incr\
+     STR R1, R6, #0      ;; push R1 on stack\
+     ADD R6, R6, #1  ;; incr\
+     STR R2, R6, #0      ;; push R2 on stack\
+     ADD R6, R6, #1  ;; incr\
+     STR R3, R6, #0      ;; push R3 on stack\
+     ADD R6, R6, #1  ;; incr\
+     STR R4, R6, #0      ;; push R4 on stack\
+     ADD R6, R6, #1  ;; incr\
+     STR R5, R6, #0      ;; push R5 on stack\
+     ADD R6, R6, #1  ;; incr\
+     LD R5, REG6     ;; get R6 from MEMORY (destroys R5)\
+     STR R5, R6, #0      ;; push R6 on stack\
+     ADD R6, R6, #1  ;; incr\
+     LD R5, REG7     ;; get R7 from MEMORY\
+     STR R5, R6, #0  ;; push R7 on stack\
+     ADD R6, R6, #1  ;; incr\
+     ST R6, TOP      ;; save incremented TOP\
+     LD R6, REG6\
+     LD R5, REG5     ;; \
+     RET\
+\
+POP:   LD R6, TOP     ;; R6 is TOP of stack\
+     ADD R6, R6, #-1     ;; decr\
+     LDR  R1, R6, #0      ;; load R7\
+     ST  R1, REG7    ;; save to MEMORY\
+     ADD R6, R6, #-1     ;; decr\
+     LDR  R1, R6, #0      ;; load R6\
+     ST  R1, REG6    ;; save to MEMORY\
+     ADD R6, R6, #-1     ;; decr\
+     LDR  R5, R6, #0      ;; load R5\
+     ADD R6, R6, #-1     ;; decr\
+     LDR  R4, R6, #0      ;; load R4\
+     ADD R6, R6, #-1     ;; decr\
+     LDR  R3, R6, #0      ;; load R3\
+     ADD R6, R6, #-1     ;; decr\
+     LDR  R2, R6, #0      ;; load R2\
+     ADD R6, R6, #-1     ;; decr\
+     LDR  R1, R6, #0      ;; load R1\
+     ADD R6, R6, #-1     ;; decr\
+     LDR  R0, R6, #0      ;; load R0\
+     ST R6, TOP      ;; save decremented TOP\
+     LD R6, REG6, #0     ;; put R6 back the way it was\
+     RET\
+.END}
